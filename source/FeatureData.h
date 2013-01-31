@@ -27,6 +27,7 @@ class FeatureData { // represents a training data set distributed among processo
 	public:
 		// constructor/destructor
 		FeatureData(int n, int numfeatures_, int isrankingset_, int myid_, int numprocs_);
+		FeatureData(int n, int k, int numfeatures_, int isrankingset_, int myid_, int numprocs_);
 		~FeatureData();
 
 		// reading and initialization
@@ -48,6 +49,7 @@ class FeatureData { // represents a training data set distributed among processo
 		int getNode(int i);
 		void setNode(int i, int n);
 		double getResidual(int i);
+		double getMultiResidual(int k, int i);
 		double getFeature(int f, int i);
 		double getSortedFeature(int f, int i);
 		int getSortedIndex(int f, int i);
@@ -59,7 +61,9 @@ class FeatureData { // represents a training data set distributed among processo
 
 		// prediction
 		void updatePred(int i, double p);
+		void updateMultiPred(int k, int i, double p); 
 		void updateResiduals();
+		void updateMultiResiduals();
 
 		//
 		void updateSparseValue();
@@ -69,6 +73,7 @@ class FeatureData { // represents a training data set distributed among processo
 	public:
 		// dataset descriptors
 		int N; // number of data instances
+		int K; // number of class
 		int numfeatures; // number of features stored on this processor
 		bool isrankingset; // whether qids should be expected in file, also whether to compute ranking metrics
 		// int minfeature, maxfeature; // range of feature indices on this processor; mapped from [minf,maxf] to [1,numf]; 0 feature for convenience
@@ -79,22 +84,31 @@ class FeatureData { // represents a training data set distributed among processo
 		int* qid; // query id of each instance
 
 		// REVISE
-	
+
 		vector< vector<SparseFeature> > rawfeatures;
 
 		// REVISE 
 		// store the sparse dataset
 		vector< vector<SparseFeature> > sortedfeatures;
 		vector< vector<int> > sparseindices;
-	
+
 		double* label; // target label value of each instance
+		double** multi_label;//target label value of each class and instance
 
 		// level-specific attributes
 		int* node; // last node reached in tree, permits constant time classification at each level
 
-		// prediction attributes
+		//level-specific attributes(multiple)
+		//int** node;//last node reached in tree in
+
+		// prediction attributes(single)
 		double* pred; // current cumulative prediction for each instance
 		double* residual;  // current cumulative residual for each instance
+
+		// prediction attributes(multiple)
+		double** multi_pred;//current cumalative prediction for each class and instance
+		double** multi_residual;//current cumalative residual for each class and insance
+		double** multi_px;//current P_k(x) for each class and instance
 
 		// metric attributes
 		double* idealdcg; // ideal dcg by query
@@ -120,11 +134,11 @@ FeatureData::FeatureData(int n, int numfeatures_, int isrankingset_, int myid_, 
 
 	// qid: limited init, read from file
 	qid = new int[n];
-	
+
 	for (int i = 0; i < numfeatures; i++) {
 		sortedfeatures.push_back(vector<SparseFeature>());
 		sparseindices.push_back(vector<int>());
-		
+
 		rawfeatures.push_back(vector<SparseFeature>());	
 	}
 	// label: limited init, read from file
@@ -147,6 +161,38 @@ FeatureData::FeatureData(int n, int numfeatures_, int isrankingset_, int myid_, 
 	idealdcg = NULL;	
 }
 
+FeatureData::FeatureData(int n, int k, int numfeatures_, int isrankingset_, int myid_, int numprocs_){
+	N = n;
+	K = k;
+	isrankingset = isrankingset_;
+	numfeatures = computeNumFeatures(numfeatures_, numprocs_, myid_);
+	myid = myid_;
+	numprocs = numprocs_;
+	numqueries = -1;
+	qid = new int[n];
+
+	for(int i = 0; i < numfeatures; i++){
+		sortedfeatures.push_back(vector<SparseFeature>());
+		sparseindices.push_back(vector<int>());
+
+		rawfeatures.push_back(vector<SparseFeature>());
+
+	}	
+	multi_label = new double*[k];
+	multi_residual = new double*[k];
+	for (int i = 0; i<k; i++) {
+		multi_label[i] = new double[n];
+		multi_residual[i] = new double[n];
+	}
+	node = new int[n];
+
+	for (int i = 0; i<n; i++)
+		node[i] = 0;
+
+	idealdcg = NULL;
+
+
+}
 FeatureData::~FeatureData() {
 	// delete all 1-d arrays: qid, label, node, pred, residual, idealdcg
 	delete [] qid;
@@ -155,7 +201,7 @@ FeatureData::~FeatureData() {
 	delete [] pred;
 	delete [] residual;
 	delete [] idealdcg;
-	
+
 	/*
 	// delete all 2-d arrays: rawfeatures, sortedfeatures, sortedindices
 	for (int i=0; i<numfeatures; i++) {
@@ -287,9 +333,9 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 				SparseFeature rf;
 				rf.i_index = i;
 				rf.value = value;
-	
+
 				rawfeatures[lf].push_back(rf);
-				
+
 				sortedfeatures[lf].push_back(sf);
 				sparseindices[lf].push_back(i);
 			} 
@@ -436,7 +482,7 @@ int FeatureData::binarySearch(int f, int i) {
 
 	if (found)
 		return mid;
-	
+
 	return -1;
 }
 
@@ -452,12 +498,17 @@ double FeatureData::getResidual(int i) {
 	return residual[i];
 }
 
+double FeatureData::getMultiResidual(int k, int i){
+	return multi_residual[k][i];
+}
+
+
 double FeatureData::getFeature(int f, int i) {	
 	// binarySearch needs log(rawfeatures[f].size())
 	int index = binarySearch(f, i);
 	if (index == -1)
 		return 0.0;
-	
+
 	return rawfeatures[f][index].value;
 }
 
@@ -478,8 +529,20 @@ void FeatureData::updatePred(int i, double p) {
 	pred[i] += p;
 }
 
+void FeatureData::updateMultiPred(int k, int i, double p) {
+	multi_pred[k][i] += p;
+}
+
+void FeatureData::updateMultiResiduals() {
+
+	computeMultiGradient(N, K, multi_label, multi_pred, qid, multi_residual);
+	for (int i = 0; i<N; i++)
+		node[i] = 0;
+
+}
+
 void FeatureData::updateResiduals() {
-	
+
 	computegradient(N, label, pred, qid, residual);
 
 	for (int i = 0; i < N; i++)
