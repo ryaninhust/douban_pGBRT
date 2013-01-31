@@ -64,6 +64,7 @@ class FeatureData { // represents a training data set distributed among processo
 		void updateMultiPred(int k, int i, double p); 
 		void updateResiduals();
 		void updateMultiResiduals();
+		void updateMultiPx();
 
 		//
 		void updateSparseValue();
@@ -547,5 +548,19 @@ void FeatureData::updateResiduals() {
 
 	for (int i = 0; i < N; i++)
 		node[i] = 0;
+}
+
+//TODO MPI processing
+void FeatureData::updateMultiPx() {
+	double* temp = new double[N];
+	for (int i=0; i<N; i++) {
+		temp[i] = 0;
+		for (int k=0; k<K; k++) {
+			temp[i] += multi_pred[k][i];		
+		}
+		for (int k=0; k<K; k++) {
+			multi_px[k][i] = multi_pred[k][i]/temp[i];
+		}
+	}
 }
 #endif
