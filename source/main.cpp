@@ -149,7 +149,7 @@ void computemetrics(args_t a, FeatureData* train, InstanceData* valid, InstanceD
 /*
  * BUILDTREE: build a regression tree in parallel
  */
-void buildtree(args_t args, StaticTree* tree, FeatureData* data, SplitsBuffer* splits, int maxDepth, int numProcs, int numtree);
+void buildtree(args_t args, StaticTree* tree, FeatureData* data, SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k);
 
 /*
  * SHUFFLE: random shuffle function for Friedman subsampling
@@ -204,28 +204,31 @@ void run(args_t a) {
 	for (int i=0; i<a.numTrees; i++) {	
 		// clear tree
 		tree->clear();
-		
+
 		// update residuals
 		train->updateResiduals();		
-		// build tree
-		buildtree(a, tree, train, splitsbuffer, a.maxDepth, a.numProcs, i);
 
-		// print tree
-		if (a.isRoot) tree->printTree(a.learningRate);
+		for (int k=1; k<a.classSize; k++) {
+			// build tree
+			buildtree(a, tree, train, splitsbuffer, a.maxDepth, a.numProcs, i, k);
 
-		// update predictions
-		tree->updateTrainingPredictions(train, a.learningRate);
-		if (a.useValidSet) tree->updatePredictions(valid, a.learningRate);
-		if (a.useTestSet) tree->updatePredictions(test, a.learningRate);
+			// print tree
+			if (a.isRoot) tree->printTree(a.learningRate);
 
-		// compute and print metrics
-		if (i % 10 == 0) computemetrics(a, train, valid, test, i);
+			// update predictions
+			tree->updateTrainingPredictions(train, k, a.learningRate);
+			if (a.useValidSet) tree->updatePredictions(valid, a.learningRate);
+			if (a.useTestSet) tree->updatePredictions(test, a.learningRate);
 
-		// print tree time
-		if (i % 100 == 99 and a.isRoot and a.time) printtime("trees");	
-	
+			// compute and print metrics
+			if (i % 10 == 0) computemetrics(a, train, valid, test, i);
+
+			// print tree time
+			if (i % 100 == 99 and a.isRoot and a.time) printtime("trees");	
+
+		}
 	}
-	
+
 	// destroy tree
 	delete tree;
 
@@ -242,7 +245,7 @@ void run(args_t a) {
 /*
  * BUILD TREE: compress features, send to master, receive splits, and repeat
  */
-void buildtree(args_t args, StaticTree* tree, FeatureData* data, SplitsBuffer* splits, int maxDepth, int numProcs, int numtree) {
+void buildtree(args_t args, StaticTree* tree, FeatureData* data, SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k) {
 	// reset nodes
 	data->reset();
 
@@ -251,11 +254,11 @@ void buildtree(args_t args, StaticTree* tree, FeatureData* data, SplitsBuffer* s
 	// build tree in layers
 	for (int l=1; l<maxDepth; l++) {	
 		// find best splits on local features
-		tree->findBestLocalSplits(data, numtree);
+		tree->findBestLocalSplits(data, k, numtree);
 
 		// exchange local splits and determine best global splits
 		tree->exchangeBestSplits();
-		
+
 		if (numProcs == 1) {	
 			// apply splits
 			splits->updateSingleCore(data, tree, numtree);
