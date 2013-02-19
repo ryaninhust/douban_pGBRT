@@ -21,4 +21,7 @@
 # ctags
 /source/tags
 
+# swp files
+*.swp
+
 
