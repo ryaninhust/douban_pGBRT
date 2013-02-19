@@ -536,7 +536,7 @@ void FeatureData::updateMultiPred(int k, int i, double p) {
 
 void FeatureData::updateMultiResiduals() {
 
-	computeMultiGradient(N, K, multi_label, multi_pred, qid, multi_residual);
+	computeMultiGradient(N, K, multi_label, multi_px, qid, multi_residual);
 	for (int i = 0; i<N; i++)
 		node[i] = 0;
 

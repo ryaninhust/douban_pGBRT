@@ -45,7 +45,7 @@ class StaticTree {
 
 		// prediction methods
 		void updateTrainingPredictions(FeatureData *data, int k, double learningrate);
-		void updatePredictions(InstanceData *data, double learningrate);
+		void updatePredictions(InstanceData *data, int k, double learningrate);
 
 		// output methods
 		void printTree(double learningrate);
@@ -353,11 +353,12 @@ void StaticTree::updateTrainingPredictions(FeatureData *data, int k, double lear
 	}
 }
 
-void StaticTree::updatePredictions(InstanceData *data, double learningrate) {
+//TODO complete k interation
+void StaticTree::updatePredictions(InstanceData *data, int k, double learningrate) {
 	int N = data->getN();
 	for (int i=0; i<N; i++) {
 		double pred = learningrate * classifyDataPoint(data, i);
-		data->updatePred(i,pred);
+		data->updateMultiPred(k, i, pred);
 	}
 }
 

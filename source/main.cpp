@@ -62,7 +62,7 @@ void myslice(int myid, int numprocs, int size, int &start, int &nextstart) {
 FeatureData* readtrainingdata(args_t a, const char *file, int N) {	
 	// read and return data
 	// FeatureData* data = new FeatureData(N, nf, a.computeRankingMetrics, startf, nextstartf-1);
-	FeatureData* data = new FeatureData(N, a.numFeatures, a.computeRankingMetrics, a.myid, a.numProcs);
+	FeatureData* data = new FeatureData(N, a.classSize, a.numFeatures, a.computeRankingMetrics, a.myid, a.numProcs);
 
 	// read, prep, and return data
 	if (not data->read(file)) exit(1);
@@ -82,7 +82,7 @@ InstanceData* readtestdata(args_t a, const char *file, int size) {
 	int N = nextstart - start;
 
 	// read and return data
-	InstanceData* data = new InstanceData(N, a.numFeatures, a.computeRankingMetrics, start, nextstart-1);
+	InstanceData* data = new InstanceData(N, a.classSize, a.numFeatures, a.computeRankingMetrics, start, nextstart-1);
 
 	if (not data->read(file, size)) exit(1);
 	if (a.computeRankingMetrics) data->initMetrics();
@@ -206,7 +206,7 @@ void run(args_t a) {
 		tree->clear();
 
 		// update residuals
-		train->updateResiduals();		
+		train->updateMultiResiduals();		
 
 		for (int k=1; k<a.classSize; k++) {
 			// build tree
@@ -217,8 +217,9 @@ void run(args_t a) {
 
 			// update predictions
 			tree->updateTrainingPredictions(train, k, a.learningRate);
-			if (a.useValidSet) tree->updatePredictions(valid, a.learningRate);
-			if (a.useTestSet) tree->updatePredictions(test, a.learningRate);
+			//TODO change updatePredictions
+			if (a.useValidSet) tree->updatePredictions(valid, k, a.learningRate);
+			if (a.useTestSet) tree->updatePredictions(test, k, a.learningRate);
 
 			// compute and print metrics
 			if (i % 10 == 0) computemetrics(a, train, valid, test, i);

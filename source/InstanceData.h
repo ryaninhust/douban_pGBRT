@@ -19,7 +19,7 @@ using namespace std;
 class InstanceData { // represents a test data set distributed among processors instance-wise
 	public:
 		// constructor/destructor
-		InstanceData(int n, int numfeatures_, bool isrankingset_, int mini, int maxi);
+		InstanceData(int n, int k, int numfeatures_, bool isrankingset_, int mini, int maxi);
 		~InstanceData();
 
 		// reading and initialization
@@ -37,10 +37,12 @@ class InstanceData { // represents a test data set distributed among processors 
 
 		// prediction
 		void updatePred(int i, double p);
+		void updateMultiPred(int k, int i, double p);
 
 	private:
 		// dataset descriptors
 		int N; // number of data instances
+		int K; // number of class 
 		int numfeatures; // number of features stored on this processor
 		bool isrankingset; // whether qids should be expected in file, also whether to compute ranking metrics
 		int numqueries; // number of queries in the data set
@@ -55,6 +57,7 @@ class InstanceData { // represents a test data set distributed among processors 
 
 		// prediction attributes
 		double* pred; // current cumulative prediction for each instance
+		double** multiPred;//current cumlative prediction for each class k and each instance
 
 		// metric attributes
 		double* idealdcg; // ideal dcg by query
@@ -65,9 +68,10 @@ class InstanceData { // represents a test data set distributed among processors 
 		bool parseFeatureValue(string &cfeature, string &cvalue);
 };
 
-InstanceData::InstanceData(int n, int numfeatures_, bool isrankingset_, int mini, int maxi) {
+InstanceData::InstanceData(int n, int k, int numfeatures_, bool isrankingset_, int mini, int maxi) {
 	// N, numfeatures
 	N = n;
+	K = k;
 	numfeatures = numfeatures_;
 	isrankingset = isrankingset_;
 	numqueries = -1;
@@ -89,6 +93,7 @@ InstanceData::InstanceData(int n, int numfeatures_, bool isrankingset_, int mini
 
 	// pred: initialized to 0.f
 	pred = NULL;
+	multiPred = NULL;
 
 	// idealdcg: no init, computed after file reading, if isrankingset
 	idealdcg = NULL;
@@ -222,6 +227,15 @@ bool InstanceData::read(const char* file, int filesize) {
 	pred = new double[N];
 	for (int i=0; i<N; i++)
 		pred[i] = 0.0;
+
+	multiPred = new double*[K];
+	for (int k=0; k<K; k++) {
+		multiPred[k] = new double[N];
+		for (int i=0; i<N; i++) {
+			multiPred[k][i] = 0.0;
+		}
+	}
+
 
 	// indicate success
 	return true;
@@ -394,6 +408,11 @@ void InstanceData::computeMetrics(double &rmse, double &err, double &ndcg) {
 
 void InstanceData::updatePred(int i, double p) {
 	pred[i] += p;
+}
+
+void InstanceData::updateMultiPred(int k, int i, double p) {
+	multiPred[k][i] += p;
+
 }
 
 #endif
