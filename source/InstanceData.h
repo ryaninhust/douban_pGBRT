@@ -57,8 +57,8 @@ class InstanceData { // represents a test data set distributed among processors 
 
 		// prediction attributes
 		double* pred; // current cumulative prediction for each instance
-		double** multiPred;//current cumlative prediction for each class k and each instance
-
+		double** multi_pred;//current cumlative prediction for each class k and each instance
+                double** multi_label;// add
 		// metric attributes
 		double* idealdcg; // ideal dcg by query
 
@@ -88,12 +88,12 @@ InstanceData::InstanceData(int n, int k, int numfeatures_, bool isrankingset_, i
 		features[i] = new vector<double>(n,-9999999.f);
 
 	// label: limited init, read from file
-	label = NULL;
+	//label = NULL;
 	labeltemp = new vector<double>(n,0.f);
 
 	// pred: initialized to 0.f
 	pred = NULL;
-	multiPred = NULL;
+	multi_pred = NULL;
 
 	// idealdcg: no init, computed after file reading, if isrankingset
 	idealdcg = NULL;
@@ -217,9 +217,21 @@ bool InstanceData::read(const char* file, int filesize) {
 	qidtemp = NULL;
 
 	// convert label to array
-	label = new double[N];
+	// FIXME change!!
+	//label = new double[N];
+	//for (int i=0; i<N; i++)
+	//	label[i] = labeltemp->at(i);
+	//delete labeltemp;
+	
+	multi_label = new double*[K];
+	for (int k=0; k<K; k++) {
+		multi_label[k] = new double[N];
+		for (int i=0; i<N; i++) {
+			multi_label[k][i] = 0.0;
+		}
+	}
 	for (int i=0; i<N; i++)
-		label[i] = labeltemp->at(i);
+		multi_label[int(labeltemp->at(i))][i];
 	delete labeltemp;
 	labeltemp = NULL;
 
@@ -228,11 +240,11 @@ bool InstanceData::read(const char* file, int filesize) {
 	for (int i=0; i<N; i++)
 		pred[i] = 0.0;
 
-	multiPred = new double*[K];
+	multi_pred = new double*[K];
 	for (int k=0; k<K; k++) {
-		multiPred[k] = new double[N];
+		multi_pred[k] = new double[N];
 		for (int i=0; i<N; i++) {
-			multiPred[k][i] = 0.0;
+			multi_pred[k][i] = 0.0;
 		}
 	}
 
@@ -411,7 +423,7 @@ void InstanceData::updatePred(int i, double p) {
 }
 
 void InstanceData::updateMultiPred(int k, int i, double p) {
-	multiPred[k][i] += p;
+	multi_pred[k][i] += p;
 
 }
 

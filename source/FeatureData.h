@@ -183,6 +183,9 @@ FeatureData::FeatureData(int n, int k, int numfeatures_, int isrankingset_, int 
 	multi_residual = new double*[k];
 	for (int i = 0; i<k; i++) {
 		multi_label[i] = new double[n];
+		for (int j = 0; j<n; j++) {
+			multi_label[i][j] = 0;
+		}
 		multi_residual[i] = new double[n];
 	}
 	node = new int[n];
@@ -272,8 +275,8 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 		return false;
 	}
 	clabel = atof(tok);
-	label[i] = clabel;
-
+	//label[i] = clabel;
+	multi_label[int(clabel)][i] = 1;
 	// get qid, or ignore if not isrankingset
 	string qidstr ("qid");
 	if (isrankingset) {
