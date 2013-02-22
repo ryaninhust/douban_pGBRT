@@ -181,12 +181,18 @@ FeatureData::FeatureData(int n, int k, int numfeatures_, int isrankingset_, int 
 	}	
 	multi_label = new double*[k];
 	multi_residual = new double*[k];
+	multi_px = new double*[K];
 	for (int i = 0; i<k; i++) {
 		multi_label[i] = new double[n];
-		for (int j = 0; j<n; j++) {
-			multi_label[i][j] = 0;
-		}
+		multi_px[i] = new double[n];
 		multi_residual[i] = new double[n];
+		for (int j = 0; j<n; j++) {
+			multi_label[i][j] = 0.0;
+			multi_px[i][j] = 0.0;
+			multi_residual[i][j] = 0.0;
+		
+		}
+		
 	}
 	node = new int[n];
 
@@ -533,6 +539,7 @@ void FeatureData::updatePred(int i, double p) {
 	pred[i] += p;
 }
 
+//FIXME
 void FeatureData::updateMultiPred(int k, int i, double p) {
 	multi_pred[k][i] += p;
 }

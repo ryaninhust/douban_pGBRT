@@ -38,6 +38,7 @@ class InstanceData { // represents a test data set distributed among processors 
 		// prediction
 		void updatePred(int i, double p);
 		void updateMultiPred(int k, int i, double p);
+		void updateMultiPx();
 
 	private:
 		// dataset descriptors
@@ -59,6 +60,7 @@ class InstanceData { // represents a test data set distributed among processors 
 		double* pred; // current cumulative prediction for each instance
 		double** multi_pred;//current cumlative prediction for each class k and each instance
                 double** multi_label;// add
+		double** multi_px;
 		// metric attributes
 		double* idealdcg; // ideal dcg by query
 
@@ -224,30 +226,22 @@ bool InstanceData::read(const char* file, int filesize) {
 	//delete labeltemp;
 	
 	multi_label = new double*[K];
+	multi_pred = new double*[K];
+	multi_px = new double*[K];
 	for (int k=0; k<K; k++) {
 		multi_label[k] = new double[N];
+		multi_pred[K] = new double[N];
+		multi_px[k] = new double[N];
 		for (int i=0; i<N; i++) {
 			multi_label[k][i] = 0.0;
+			multi_pred[k][i] = 0.0;
+			multi_px[k][i] = 0.0;
 		}
 	}
 	for (int i=0; i<N; i++)
 		multi_label[int(labeltemp->at(i))][i];
 	delete labeltemp;
 	labeltemp = NULL;
-
-	// initialized pred
-	pred = new double[N];
-	for (int i=0; i<N; i++)
-		pred[i] = 0.0;
-
-	multi_pred = new double*[K];
-	for (int k=0; k<K; k++) {
-		multi_pred[k] = new double[N];
-		for (int i=0; i<N; i++) {
-			multi_pred[k][i] = 0.0;
-		}
-	}
-
 
 	// indicate success
 	return true;
@@ -427,4 +421,16 @@ void InstanceData::updateMultiPred(int k, int i, double p) {
 
 }
 
+void InstanceData::updateMultiPx() {
+	double* temp = new double[N];
+	for (int i=0; i<N; i++) {
+		temp[i] = 0;
+		for (int k=0; k<K; k++) {
+			temp[i] += multi_pred[k][i];
+		}
+		for (int k=0; k<K; k++) {
+			multi_px[k][i] = multi_pred[k][i]/temp[i];
+		}
+	}
+}
 #endif

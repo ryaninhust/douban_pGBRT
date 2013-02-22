@@ -207,7 +207,8 @@ void run(args_t a) {
 
 		// update residuals
 		train->updateMultiResiduals();		
-
+		valid->updateMultiPx();
+		test-> updateMultiPx();
 		for (int k=1; k<a.classSize; k++) {
 			// build tree
 			buildtree(a, tree, train, splitsbuffer, a.maxDepth, a.numProcs, i, k);

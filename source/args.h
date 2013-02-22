@@ -81,6 +81,7 @@ static void print_help() {
 			"DEPTH       maximum regression tree depth\n"
 			"N_TREES     number of regression trees to learn\n"
 			"RATE        learning rate/stepsize\n\n"
+			"K_CLASSES   k class/size of classes\n\n"  
 
 			"-V, -E      validation/testing files\n"
 			"-v, -e      number of instances in validation/testing files\n"
