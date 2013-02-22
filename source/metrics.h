@@ -19,6 +19,18 @@ static double computeBoostingSE(int N, double *label, double *pred) {
 		SE += pow(label[i] - pred[i], 2.0);
 	return SE;
 }
+/*
+ * compute MultiBoostingSE
+ */
+static double computeMultiBoostingSE(int N, int K, double **multi_label, double **multi_px) {
+	double SE = 0.;
+	for (int i=0; i<N; i++) {
+		for (int k=0; k<K; k++) {
+			SE += pow(multi_label[k][i] - multi_px[k][i]);
+		}
+	return SE;
+	}
+}
 
 /*
  * compute number of queries (assumes, per data format standard, that instances are ordered by qid)
