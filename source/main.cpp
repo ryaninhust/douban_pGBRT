@@ -46,6 +46,8 @@ int main(int argc, char* argv[]) {
 	// if good args, print parameters
 	if (a.isRoot) print_args(a);	
 	// run and exit
+	int flag = 1;
+	while(flag);
 	run(a);
 	MPI_Finalize();
 	return EXIT_SUCCESS;

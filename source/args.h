@@ -111,7 +111,7 @@ static void initialize_args(args_t& a) {
 	a.trainFile = NULL; a.sizeTrainFile = 0;
 	a.validFile = NULL; a.useValidSet = false; a.sizeValidFile = 0;
 	a.testFile = NULL; a.useTestSet = false; a.sizeTestFile = 0;
-	a.classSize = 2;
+	a.classSize = 3;
 
 	// data set attributes
 	a.numFeatures = -1;
