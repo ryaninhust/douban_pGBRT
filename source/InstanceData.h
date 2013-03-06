@@ -53,13 +53,13 @@ class InstanceData { // represents a test data set distributed among processors 
 		vector<double>** features; // feature values
 		int* qid; // query id of each instance
 		vector<int>* qidtemp;
-		double* label; // target label value of each instance
+		//double* label; // target label value of each instance
 		vector<double>* labeltemp;
 
 		// prediction attributes
-		double* pred; // current cumulative prediction for each instance
+		//double* pred; // current cumulative prediction for each instance
 		double** multi_pred;//current cumlative prediction for each class k and each instance
-                double** multi_label;// add
+        double** multi_label;// add
 		double** multi_px;
 		// metric attributes
 		double* idealdcg; // ideal dcg by query
@@ -94,8 +94,20 @@ InstanceData::InstanceData(int n, int k, int numfeatures_, bool isrankingset_, i
 	labeltemp = new vector<double>(n,0.f);
 
 	// pred: initialized to 0.f
-	pred = NULL;
-	multi_pred = NULL;
+	//pred = NULL;
+	multi_label = new double*[k];
+	multi_pred = new double*[k];
+	multi_px = new double*[k];
+	for (int i=0; i<k; i++) {
+		multi_label[i] = new double[n];
+		multi_pred[i] = new double[n];
+		multi_px[i] = new double[n];
+		for (int j=0; j<N; j++){
+			multi_label[i][j] = 0.0;
+			multi_pred[i][j] = 0.0;
+			multi_px[i][j] = 0.0;
+		}
+	}
 
 	// idealdcg: no init, computed after file reading, if isrankingset
 	idealdcg = NULL;
@@ -103,9 +115,11 @@ InstanceData::InstanceData(int n, int k, int numfeatures_, bool isrankingset_, i
 
 InstanceData::~InstanceData() {
 	delete [] qid; delete qidtemp;
-	delete [] label; delete labeltemp;
-	delete [] pred;
+	//delete [] label;
+	delete labeltemp;
+	//delete [] pred;
 	delete [] idealdcg;
+
 
 	for (int i=0; i<numfeatures; i++) {
 		delete features[i];
@@ -224,22 +238,9 @@ bool InstanceData::read(const char* file, int filesize) {
 	//for (int i=0; i<N; i++)
 	//	label[i] = labeltemp->at(i);
 	//delete labeltemp;
-	
-	multi_label = new double*[K];
-	multi_pred = new double*[K];
-	multi_px = new double*[K];
-	for (int k=0; k<K; k++) {
-		multi_label[k] = new double[N];
-		multi_pred[K] = new double[N];
-		multi_px[k] = new double[N];
-		for (int i=0; i<N; i++) {
-			multi_label[k][i] = 0.0;
-			multi_pred[k][i] = 0.0;
-			multi_px[k][i] = 0.0;
-		}
-	}
 	for (int i=0; i<N; i++)
-		multi_label[int(labeltemp->at(i))][i];
+		// 这里-1
+		multi_label[int(labeltemp->at(i))-1][i] = 1.0;
 	delete labeltemp;
 	labeltemp = NULL;
 
@@ -322,7 +323,7 @@ bool InstanceData::storeLine(char* line, int i, double label, int qid) { // uses
 			return false;
 		}
 		value = (double) atof(cvalue.c_str());
-		features[feature]->at(i) = value;
+		features[feature-1]->at(i) = value;
 		// TODO: faster?? consider dropping this if statement and using 
 		// mine = (f >= minfeature and f <= maxfeature); features[f*mine]->value = v*mine;
 	} while (parseFeatureValue(cfeature, cvalue));
@@ -383,7 +384,7 @@ void InstanceData::initMetrics() {
 	idealdcg = new double[numqueries];
 
 	// compute idealdcg for each query
-	computeIdealDCG(N, qid, label, idealdcg);
+	//computeIdealDCG(N, qid, label, idealdcg);
 }
 
 void InstanceData::computeMetrics(double &rmse, double &err, double &ndcg) {
@@ -391,12 +392,13 @@ void InstanceData::computeMetrics(double &rmse, double &err, double &ndcg) {
 	// however results are only valid at root (myid==0)
 
 	// compute rmse
-	double se = computeBoostingSE(N, label, pred);
+	//double se = computeBoostingSE(N, label, pred);
+	double se = computeMultiBoostingSE(N,K,multi_label, multi_px);
 
 	// compute ranking metrics
 	double rawerr, rawndcg; int nq;
 	if (isrankingset) {
-		computeBoostingRankingMetrics(N, qid, pred, label, idealdcg, rawerr, rawndcg);
+		//computeBoostingRankingMetrics(N, qid, pred, label, idealdcg, rawerr, rawndcg);
 		nq = getNumQueries();
 	}
 
@@ -412,9 +414,7 @@ void InstanceData::computeMetrics(double &rmse, double &err, double &ndcg) {
 	ndcg = recv_buffer[3] / recv_buffer[4];
 }
 
-void InstanceData::updatePred(int i, double p) {
-	pred[i] += p;
-}
+
 
 void InstanceData::updateMultiPred(int k, int i, double p) {
 	multi_pred[k][i] += p;
@@ -426,10 +426,10 @@ void InstanceData::updateMultiPx() {
 	for (int i=0; i<N; i++) {
 		temp[i] = 0;
 		for (int k=0; k<K; k++) {
-			temp[i] += multi_pred[k][i];
+			temp[i] += exp(multi_pred[k][i]);
 		}
 		for (int k=0; k<K; k++) {
-			multi_px[k][i] = multi_pred[k][i]/temp[i];
+			multi_px[k][i] = exp(multi_pred[k][i])/temp[i];
 		}
 	}
 }

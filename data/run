@@ -1,1 +1,1 @@
-mpirun  -np 1 ../source/test dna.scale.tr 1400 180 4 100 0.1 -V dna.scale.val -v 600  
+mpirun  -np 2  ../bin/pgbrt dna.scale.tr 1400 180 4 100 0.1 -V dna.scale.val -v 600  

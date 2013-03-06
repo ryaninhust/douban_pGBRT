@@ -28,8 +28,8 @@ static double computeMultiBoostingSE(int N, int K, double **multi_label, double 
 		for (int k=0; k<K; k++) {
 			SE += pow(multi_label[k][i] - multi_px[k][i], 2.0);
 		}
-	return SE;
 	}
+	return SE;
 }
 
 /*

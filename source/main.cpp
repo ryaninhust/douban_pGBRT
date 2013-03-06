@@ -22,7 +22,11 @@ using namespace std;
  */
 time_t start;
 void run(args_t a);
-
+/**
+ * TODO:
+ * 3-5
+ * 调试验证排序与选优
+ */
 int main(int argc, char* argv[]) {
 	// start timer
 	time(&start);
@@ -46,10 +50,11 @@ int main(int argc, char* argv[]) {
 	// if good args, print parameters
 	if (a.isRoot) print_args(a);	
 	// run and exit
-	int flag = 1;
-	while(flag);
+//	int flag = 1;
+//	while(flag);
 	run(a);
 	MPI_Finalize();
+	printf("OK!");
 	return EXIT_SUCCESS;
 }
 
@@ -122,7 +127,7 @@ void computemetrics(args_t a, FeatureData* train, InstanceData* valid, InstanceD
 	// compute train metrics
 	if (a.isRoot) {
 		train->computeMetrics(rmse, err, ndcg);
-		printf("%d,%f", iter, rmse);
+		printf("train iter: %d, rmse: %f", iter, rmse);
 		if (a.computeRankingMetrics) printf(",%f,%f", err, ndcg);
 	}
 
@@ -130,7 +135,7 @@ void computemetrics(args_t a, FeatureData* train, InstanceData* valid, InstanceD
 	if (a.useValidSet) {
 		valid->computeMetrics(rmse, err, ndcg);
 		if (a.isRoot) {
-			printf(",%f", rmse);
+			printf("Valid rmse: %f", rmse);
 			if (a.computeRankingMetrics) printf(",%f,%f", err, ndcg);
 		}
 	}
@@ -139,7 +144,7 @@ void computemetrics(args_t a, FeatureData* train, InstanceData* valid, InstanceD
 	if (a.useTestSet) {
 		test->computeMetrics(rmse, err, ndcg);
 		if (a.isRoot) {
-			printf(",%f", rmse);
+			printf("Test rmse: %f", rmse);
 			if (a.computeRankingMetrics) printf(",%f,%f", err, ndcg);
 		}
 	}
@@ -193,7 +198,7 @@ void run(args_t a) {
 	if (a.useTestSet) test = readtestdata(a, a.testFile, a.sizeTestFile);
 
 	// construct tree
-	StaticTree* tree = new StaticTree(a.maxDepth);
+	StaticTree* tree = new StaticTree(a.maxDepth, a.sizeTrainFile);
 
 	// print sorting time
 	if (a.isRoot and a.time) printtime("initialization");
@@ -205,14 +210,16 @@ void run(args_t a) {
 
 	for (int i=0; i<a.numTrees; i++) {	
 		// clear tree
-		tree->clear();
+
 
 		// update residuals
-		train->updateMultiResiduals();		
-		valid->updateMultiPx();
-		test-> updateMultiPx();
-		for (int k=1; k<a.classSize; k++) {
+		train->updateMultiPx();
+		train->updateMultiResiduals();
+		if(a.useValidSet) valid->updateMultiPx();
+		if(a.useTestSet) test->updateMultiPx();
+		for (int k=0; k<a.classSize; k++) {
 			// build tree
+			tree->clear();
 			buildtree(a, tree, train, splitsbuffer, a.maxDepth, a.numProcs, i, k);
 
 			// print tree
@@ -252,7 +259,6 @@ void run(args_t a) {
 void buildtree(args_t args, StaticTree* tree, FeatureData* data, SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k) {
 	// reset nodes
 	data->reset();
-
 	// apply subsampling
 
 	// build tree in layers

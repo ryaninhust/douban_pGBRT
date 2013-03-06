@@ -24,4 +24,5 @@
 # swp files
 *.swp
 
-
+# data
+/data
