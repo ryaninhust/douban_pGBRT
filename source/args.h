@@ -40,6 +40,8 @@ struct args_t {
 	int myid;
 	int numProcs;
 	bool isRoot;
+	
+	//const char *collections;
 
 	// data sets
 	const char *trainFile; int sizeTrainFile;
@@ -81,7 +83,7 @@ static void print_help() {
 			"DEPTH       maximum regression tree depth\n"
 			"N_TREES     number of regression trees to learn\n"
 			"RATE        learning rate/stepsize\n\n"
-			"K_CLASSES   k class/size of classes\n\n"  
+			"K_CLASSES   k class/size of classes\n\n" 
 
 			"-V, -E      validation/testing files\n"
 			"-v, -e      number of instances in validation/testing files\n"
@@ -112,6 +114,8 @@ static void initialize_args(args_t& a) {
 	a.validFile = NULL; a.useValidSet = false; a.sizeValidFile = 0;
 	a.testFile = NULL; a.useTestSet = false; a.sizeTestFile = 0;
 	a.classSize = 26;
+//	a.collections = NULL;
+
 
 	// data set attributes
 	a.numFeatures = -1;
@@ -217,10 +221,10 @@ static bool get_args(int argc, char* argv[], args_t& args, int myid, int numProc
 		} }
 
 	// check non-option arguments
-	if (argc-optind > 6) {
+	if (argc-optind > 7) {
 		if (args.isRoot) fprintf(stderr, "Too many arguments.\n");
 		return false;
-	} else if (argc-optind < 6) {
+	} else if (argc-optind < 7) {
 		if (args.isRoot) fprintf(stderr, "Too few arguments.\n");
 		return false;
 	}
@@ -261,6 +265,12 @@ static bool get_args(int argc, char* argv[], args_t& args, int myid, int numProc
 		return false;
 	}
 
+	args.classSize = atoi(argv[optind+6]);
+	if (args.classSize <= 0) {	
+		if(args.isRoot) fprintf(stderr, "Class size should be a positive number: %s\n", argv[optind+6]);
+		return false;
+	}
+
 	// return
 	return true;
 }
@@ -278,8 +288,9 @@ static void print_args(args_t& args) {
 	// trees/boosting
 	cout << "#Maximum depth: ";
 	cout << args.maxDepth << endl;
-	cout << "#Number of trees: " << args.numTrees << endl;
+	cout << "#Number of trees:" << args.numTrees << endl;
 	cout << "#Learning rate: " << args.learningRate << endl;
+	cout << "#Class size:" << args.classSize << endl;
 
 	cout << "#*****************************************" << endl;
 }

@@ -70,12 +70,13 @@ void SplitsBuffer::updateSingleCore(FeatureData* data, StaticTree* tree, int num
 	
 		data->setNode(i,data->getNode(i) << 1); // node[i] *= 2
 
-		if (feature >= 0 and data->getFeature(feature, i) >= split) { // TODO : eliminate branch
+		//smaller be right
+		if (feature >= 0 and data->getFeature(feature, i) < split) { // TODO : eliminate branch
 			data->setNode(i,data->getNode(i) | 1U); // node[i] += 1
 		}	
 	}
 }
-
+//TODO: change node order
 void SplitsBuffer::updateFromData(FeatureData* data, StaticTree* tree) {
 	// iterate over buffer cells
 	int i=0; // data instance index
@@ -93,7 +94,7 @@ void SplitsBuffer::updateFromData(FeatureData* data, StaticTree* tree) {
 			tree->getSplit(node, feature, split);
 	
 			// determine new node
-			bool newnode = (data->isLocalFeature(feature) and data->getFeature(data->localFeatureIndex(feature), i) >= split);
+			bool newnode = (data->isLocalFeature(feature) and data->getFeature(data->localFeatureIndex(feature), i) < split);
 	
 			buffer[j] = (buffer[j] & ~mask) | (-newnode & mask);
 		}

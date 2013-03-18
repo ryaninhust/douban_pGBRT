@@ -10,6 +10,34 @@
 using namespace std;
 
 /*
+ *  conditional exp computing
+ */
+static double conditionalExp(double n) {
+	if (n > 709)
+	{
+		printf("hit\n");
+		return 1.79769313e+307;
+	}
+	else {
+		if(exp(n) > 1.79769313e+307) {
+			return 1.79769313e+307;
+		}	
+		else {
+			return exp(n);
+		}
+	}
+
+}
+static double nanToNum(double n) {
+	if(!isfinite(n)){
+		return 1.79769313e+308;
+	}
+	else {
+		return n;
+	}
+}
+
+/*
  * compute SE
  */
 static double computeBoostingSE(int N, double *label, double *pred) {

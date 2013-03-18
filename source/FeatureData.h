@@ -24,100 +24,101 @@ struct SparseFeature {
 };
 
 class FeatureData { // represents a training data set distributed among processors feature-wise
-public:
-	// constructor/destructor
-	FeatureData(int n, int k, int numfeatures_, int isrankingset_, int myid_,
-			int numprocs_);
-	~FeatureData();
+	public:
+		// constructor/destructor
+		FeatureData(int n, int k, int numfeatures_, int isrankingset_, int myid_,
+				int numprocs_);
+		~FeatureData();
 
-	// reading and initialization
-	bool read(const char* file);
-	void initMetrics();
-	void sort();
+		// reading and initialization
+		bool read(const char* file);
+		void initMetrics();
+		void sort();
 
-	// manage tuples
-	void reset();
+		// manage tuples
+		void reset();
 
-	// metrics
-	void computeMetrics(double &rmse, double &err, double &ndcg); // TODO for now, just compute using single-core, no comm
+		// metrics
+		void computeMetrics(double &rmse, double &err, double &ndcg); // TODO for now, just compute using single-core, no comm
 
-	// queries
-	int getN();
-	int getK();
+		// queries
+		int getN();
+		int getK();
 
-	int getNumFeatures();
-	int getNumQueries();
-	int getNode(int i);
-	void setNode(int i, int n);
-	double getResidual(int i);
-	double getMultiResidual(int k, int i);
-	double getFeature(int f, int i);
-	double getSortedFeature(int f, int i);
-	int getSortedIndex(int f, int i);
+		int getNumFeatures();
+		int getNumQueries();
+		int getNode(int i);
+		void setNode(int i, int n);
+		double getResidual(int i);
+		double getMultiResidual(int k, int i);
+		double getFeature(int f, int i);
+		double getSortedFeature(int f, int i);
+		int getSortedIndex(int f, int i);
 
-	int whoHasFeature(int f);
-	bool isLocalFeature(int f);
-	int localFeatureIndex(int gf);
-	int globalFeatureIndex(int lf);
+		int whoHasFeature(int f);
+		bool isLocalFeature(int f);
+		int localFeatureIndex(int gf);
+		int globalFeatureIndex(int lf);
 
-	// prediction
-	void updatePred(int i, double p);
-	void updateMultiPred(int k, int i, double p);
-	void updateResiduals();
-	void updateMultiResiduals();
-	void updateMultiPx();
+		// prediction
+		void updatePred(int i, double p);
+		void updateMultiPred(int k, int i, double p);
+		void updateResiduals();
+		void updateMultiResiduals();
+		void updateMultiPx();
 
-	//
-	void updateSparseValue();
-	void initSparseValue();
+		//
+		void updateSparseValue();
+		void initSparseValue();
+		void predResult();
 
-	//private:
-public:
-	// dataset descriptors
-	int N; // number of data instances
-	int K; // number of class
-	int numfeatures; // number of features stored on this processor
-	bool isrankingset; // whether qids should be expected in file, also whether to compute ranking metrics
-	// int minfeature, maxfeature; // range of feature indices on this processor; mapped from [minf,maxf] to [1,numf]; 0 feature for convenience
-	int myid, numprocs;
-	int numqueries; // number of queries in the data set
+		//private:
+	public:
+		// dataset descriptors
+		int N; // number of data instances
+		int K; // number of class
+		int numfeatures; // number of features stored on this processor
+		bool isrankingset; // whether qids should be expected in file, also whether to compute ranking metrics
+		// int minfeature, maxfeature; // range of feature indices on this processor; mapped from [minf,maxf] to [1,numf]; 0 feature for convenience
+		int myid, numprocs;
+		int numqueries; // number of queries in the data set
 
-	// static attributes
-	int* qid; // query id of each instance
+		// static attributes
+		int* qid; // query id of each instance
+		double* bincounts;
+		// REVISE
 
-	// REVISE
+		vector<vector<SparseFeature> > rawfeatures;
 
-	vector<vector<SparseFeature> > rawfeatures;
+		// REVISE
+		// store the sparse dataset
+		vector<vector<SparseFeature> > sortedfeatures;
+		vector<vector<int> > sparseindices;
 
-	// REVISE
-	// store the sparse dataset
-	vector<vector<SparseFeature> > sortedfeatures;
-	vector<vector<int> > sparseindices;
+		double** multi_label; //target label value of each class and instance
 
-	double** multi_label; //target label value of each class and instance
+		// level-specific attributes
+		int* node; // last node reached in tree, permits constant time classification at each level
 
-	// level-specific attributes
-	int* node; // last node reached in tree, permits constant time classification at each level
+		//level-specific attributes(multiple)
+		//int** node;//last node reached in tree in
 
-	//level-specific attributes(multiple)
-	//int** node;//last node reached in tree in
+		// prediction attributes(single)
 
-	// prediction attributes(single)
+		// prediction attributes(multiple)
+		double** multi_pred; //current cumalative prediction for each class and instance
+		double** multi_residual; //current cumalative residual for each class and insance
+		double** multi_px; //current P_k(x) for each class and instance
 
-	// prediction attributes(multiple)
-	double** multi_pred; //current cumalative prediction for each class and instance
-	double** multi_residual; //current cumalative residual for each class and insance
-	double** multi_px; //current P_k(x) for each class and instance
+		// metric attributes
+		double* idealdcg; // ideal dcg by query
 
-	// metric attributes
-	double* idealdcg; // ideal dcg by query
-
-	// methods
-	bool processLine(int &linenum, ifstream &input, int i);
-	bool parseFeatureValue(string &cfeature, string &cvalue);
-	int computeNumFeatures(int nf, int numprocs, int myid);
-	// REVISE
-	int binarySearch(int f, int i);
+		// methods
+		bool processLine(int &linenum, ifstream &input, int i);
+		bool parseFeatureValue(string &cfeature, string &cvalue);
+		int computeNumFeatures(int nf, int numprocs, int myid);
+		// REVISE
+		int binarySearch(int f, int i);
 };
 
 FeatureData::FeatureData(int n, int k, int numfeatures_, int isrankingset_,
@@ -134,9 +135,7 @@ FeatureData::FeatureData(int n, int k, int numfeatures_, int isrankingset_,
 	for (int i = 0; i < numfeatures; i++) {
 		sortedfeatures.push_back(vector<SparseFeature>());
 		sparseindices.push_back(vector<int>());
-
 		rawfeatures.push_back(vector<SparseFeature>());
-
 	}
 	multi_label = NULL;
 	multi_residual = NULL;
@@ -161,10 +160,12 @@ FeatureData::FeatureData(int n, int k, int numfeatures_, int isrankingset_,
 
 	}
 	node = new int[n];
+	bincounts = new double[k];
 
+	for (int j = 0; j < k; j++)
+		bincounts[j] = 0;
 	for (int i = 0; i < n; i++)
 		node[i] = 0;
-
 	idealdcg = NULL;
 
 }
@@ -174,22 +175,7 @@ FeatureData::~FeatureData() {
 	delete[] node;
 	delete[] idealdcg;
 
-	/*
-	 // delete all 2-d arrays: rawfeatures, sortedfeatures, sortedindices
-	 for (int i=0; i<numfeatures; i++) {
-	 delete [] rawfeatures[i];
-	 rawfeatures[i] = NULL;
 
-	 delete [] sortedfeatures[i];
-	 sortedfeatures[i] = NULL;
-
-	 delete [] sortedindices[i];
-	 sortedindices[i] = NULL;
-	 }
-	 delete[] rawfeatures;
-	 delete[] sortedfeatures;
-	 delete[] sortedindices;
-	 */
 }
 
 bool FeatureData::read(const char* file) {
@@ -211,6 +197,15 @@ bool FeatureData::read(const char* file) {
 		}
 	}
 	// indicate success
+//	for (int j = 0; j < K; j++) {
+//		bincounts[j] = bincounts[j] / linenum;
+//	}
+//	//init multi_pred
+//	for (int i =0; i < N; i++) {
+//		for (int j = 0; j < K; j++) {
+//			multi_pred[j][i] = bincounts[j];
+//		}
+//	}
 	return true;
 }
 
@@ -224,7 +219,6 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 	string strline;
 	getline(input, strline);
 	linenum++;
-
 	// check for errors
 	if (input.eof()) {
 		fprintf(
@@ -235,7 +229,6 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 		fprintf(stderr, "Error: failure while reading training example\n");
 		return false;
 	}
-
 	// setup for tokenizing
 	char* line = strdup(strline.c_str());
 	char* tok = NULL;
@@ -247,8 +240,8 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 		return false;
 	}
 	clabel = atof(tok);
-	//label[i] = clabel;
 	multi_label[int(clabel) - 1][i] = 1;
+	bincounts[int(clabel) - 1] += 1;
 	// get qid, or ignore if not isrankingset
 	string qidstr("qid");
 	if (isrankingset) {
@@ -267,7 +260,8 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 					"Error: invalid feature/value pair in training file\n");
 			return false;
 		}
-	} else {
+	}
+	else {
 		if (not parseFeatureValue(cfeature, cvalue))
 			return true;
 		if (cvalue.empty()) {
@@ -297,7 +291,6 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 			return false;
 		}
 
-		// record feature
 		feature = atoi(cfeature.c_str()) - 1;
 		// if (feature > maxfeature) break;
 		// else if (feature >= minfeature) {
@@ -321,10 +314,10 @@ bool FeatureData::processLine(int &linenum, ifstream &input, int i) {
 				rf.i_index = i;
 				rf.value = value;
 
-				rawfeatures[lf - 1].push_back(rf);
+				rawfeatures[lf].push_back(rf);
 
-				sortedfeatures[lf - 1].push_back(sf);
-				sparseindices[lf - 1].push_back(i);
+				sortedfeatures[lf].push_back(sf);
+				sparseindices[lf].push_back(i);
 			}
 		}
 	} while (parseFeatureValue(cfeature, cvalue));
@@ -367,9 +360,9 @@ void FeatureData::reset() {
 }
 
 class FeatureValuePair {
-public:
-	int index;
-	double value;
+	public:
+		int index;
+		double value;
 };
 
 struct CompareFeatureValuePairs {
@@ -400,13 +393,13 @@ void FeatureData::initMetrics() {
 	idealdcg = new double[numqueries];
 
 	// compute idealdcg for each query
-//	computeIdealDCG(N, qid, label, idealdcg);
+	//	computeIdealDCG(N, qid, label, idealdcg);
 }
 
 void FeatureData::computeMetrics(double &rmse, double &err, double &ndcg) {
 	// compute rmse
 	rmse = sqrt(
-			computeMultiBoostingSE(N, K, multi_label, multi_pred) / (double) N);
+			computeMultiBoostingSE(N, K, multi_label, multi_px) / (double) N * K);
 
 	// if not ranking data set, return
 	if (not isrankingset)
@@ -414,7 +407,7 @@ void FeatureData::computeMetrics(double &rmse, double &err, double &ndcg) {
 
 	// compute ranking metrics
 	double rawerr, rawndcg;
-//	computeBoostingRankingMetrics(N, qid, pred, label, idealdcg, rawerr, rawndcg);
+	//	computeBoostingRankingMetrics(N, qid, pred, label, idealdcg, rawerr, rawndcg);
 	err = rawerr / (double) numqueries;
 	ndcg = rawndcg / (double) numqueries;
 }
@@ -513,10 +506,26 @@ int FeatureData::getSortedIndex(int f, int i) {
 
 	return -1;
 }
-
-//FIXME
+/*
 void FeatureData::updateMultiPred(int k, int i, double p) {
-	multi_pred[k][i] += p;
+	multi_pred[k][i] = nanToNum(multi_pred[k][i] + p);
+	double offset = 0.0;
+	if (multi_pred[k][i] > 700.0) {
+		printf("hit");
+		multi_pred[k][i] = 600.0;
+		offset = multi_pred[k][i] - 600.0;
+		for (int j = 0; j < K; j++) {
+			if(j!= k) {
+				multi_pred[j][i] = multi_pred[j][i] - offset;
+			}
+		}
+	}
+
+}
+*/
+
+void FeatureData::updateMultiPred(int k, int i , double p) {
+	multi_pred[k][i] = multi_pred[k][i] + p;
 }
 
 void FeatureData::updateMultiResiduals() {
@@ -528,16 +537,66 @@ void FeatureData::updateMultiResiduals() {
 }
 
 //TODO MPI processing
+/*
 void FeatureData::updateMultiPx() {
-	double* temp = new double[N];
+	//double* temp = new double[N];
 	for (int i = 0; i < N; i++) {
-		temp[i] = 0;
+		double temp = 0.0;
+        int flag = 0;
 		for (int k = 0; k < K; k++) {
-			temp[i] += exp(multi_pred[k][i]);
+		    if(isinf(exp(multi_pred[k][i])) or multi_pred[k][i]==1.79769313e+308) {
+		    	multi_px[k][i] = 1.0;
+		    	flag = 1;
+		    	for(int j = 0; j < K; j++){
+		    		if(j != k) {
+		    			multi_px[j][i] = 0.0;
+		    		}
+		    	}
+		    	break;
+		    }
+			//temp =nanToNum(temp + nanToNum(exp(multi_pred[k][i])));
+		    double a = exp(100);
+		    temp = temp + exp(multi_pred[k][i]);
+		}
+		if(flag) {
+			continue;
 		}
 		for (int k = 0; k < K; k++) {
-			multi_px[k][i] = exp(multi_pred[k][i]) / temp[i];
+			//multi_px[k][i] = nanToNum(exp(multi_pred[k][i])) / temp;
+			multi_px[k][i] = exp(multi_pred[k][i]) / temp;
 		}
 	}
 }
+*/
+void FeatureData::updateMultiPx() {
+	//double* temp = new double[N];
+	for (int i = 0; i < N; i++) {
+		double temp = 0.0;
+		for (int k = 0; k < K; k++) {
+			temp = nanToNum(temp + nanToNum(exp(multi_pred[k][i])));
+			}
+		for (int k = 0; k < K; k++) {
+			multi_px[k][i] = nanToNum(nanToNum(exp(multi_pred[k][i])) / temp);
+		}
+	}
+}
+void FeatureData::predResult() {
+
+	for (int i = 0; i <N; i++) {
+		double max = multi_px[0][i];
+		int r_label = 0;
+		int r_pred = 0;
+		for (int k = 0; k < K; k++) {
+			if(multi_label[k][i] == 1) {
+				r_label = k;
+			}
+			if(multi_px[k][i] > max) {
+				max = multi_px[k][i];
+				r_pred = k;
+			}
+		}
+		printf("%d %d\n",r_label, r_pred);
+	}
+}
+
 #endif
