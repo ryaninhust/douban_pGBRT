@@ -13,6 +13,7 @@
 #include <mpi.h>
 #include "metrics.h"
 #include "loss.h"
+#include "FeatureData.h"
 
 using namespace std;
 
@@ -41,19 +42,23 @@ public:
 	void updateMultiPred(int k, int i, double p);
 	void updateMultiPx();
 	void predResult();
+	void setNode(int i, int n);
+	int getNode(int i);
+	void reset();
 
 private:
 	// dataset descriptors
 	int N; // number of data instances
 	int K; // number of class
 	double* bincounts;
+	int* node;
 	int numfeatures; // number of features stored on this processor
 	bool isrankingset; // whether qids should be expected in file, also whether to compute ranking metrics
 	int numqueries; // number of queries in the data set
 	int minindex, maxindex;
 
 	// static attributes
-	vector<double>** features; // feature values
+	vector<vector<SparseFeature> > rawfeatures;
 	int* qid; // query id of each instance
 	vector<int>* qidtemp;
 	//double* label; // target label value of each instance
@@ -71,6 +76,7 @@ private:
 	bool processLineHeader(int &linenum, ifstream &input, char* &line,
 			double &label, int &qid);
 	bool storeLine(char* line, int i, double label, int qid);
+	int binarySearch(int f, int i);
 	bool parseFeatureValue(string &cfeature, string &cvalue);
 };
 
@@ -88,11 +94,15 @@ InstanceData::InstanceData(int n, int k, int numfeatures_, bool isrankingset_,
 	// qid: limited init, read from file
 	qid = NULL;
 	qidtemp = new vector<int>(n, 0);
+	node = NULL;
+	node = new int[n];
+	for(int i = 0; i < n; i++) {
+		node[i] = 0;
+	}
 
 	// features: limited init, defaulted to minimum value (for missing values) and read from file
-	features = new vector<double>*[numfeatures];
 	for (int i = 0; i < numfeatures; i++)
-		features[i] = new vector<double>(n, -9999999.f);
+		rawfeatures.push_back(vector<SparseFeature>());
 
 	// label: limited init, read from file
 	//label = NULL;
@@ -126,11 +136,8 @@ InstanceData::~InstanceData() {
 	//delete [] pred;
 	delete[] idealdcg;
 
-	for (int i = 0; i < numfeatures; i++) {
-		delete features[i];
-		features[i] = NULL;
-	}
-	delete[] features;
+//TODO
+//增加向量析构
 }
 
 bool InstanceData::read(const char* file, int filesize, double* bincounts) {
@@ -227,8 +234,8 @@ bool InstanceData::read(const char* file, int filesize, double* bincounts) {
 
 		// allocate space for new instance
 		if (j >= N) {
-			for (int f = 0; f < numfeatures; f++)
-				features[f]->push_back(0.f);
+//			for (int f = 0; f < numfeatures; f++)
+//				features[f]->push_back(0.f);
 			qidtemp->push_back(0);
 			labeltemp->push_back(0.f);
 		}
@@ -257,11 +264,11 @@ bool InstanceData::read(const char* file, int filesize, double* bincounts) {
 		multi_label[int(labeltemp->at(i)) - 1][i] = 1.0;
 	}
 
-//	for (int k = 0; k < K; k++) {
-//		for (int i =0; i < N; i++) {
-//			multi_pred[k][i] = bincounts[k];
-//		}
-//	}
+  	for (int k = 0; k < K; k++) {
+  		for (int i =0; i < N; i++) {
+  			multi_pred[k][i] = bincounts[k];
+  		}
+  	}
 
 	delete labeltemp;
 	labeltemp = NULL;
@@ -317,10 +324,12 @@ bool InstanceData::processLineHeader(int &linenum, ifstream &input, char* &line,
 					"Error: malformed line in validation/test file, missing qid\n");
 			return false;
 		}
-		qid = atoi(cvalue.c_str());
+		qid = atoi(cvalue.c_str());	// store label and qid
+
 	}
 
-	// return
+	// return	// store label and qid
+
 	return true;
 }
 
@@ -339,10 +348,10 @@ bool InstanceData::storeLine(char* line, int i, double label, int qid) { // uses
 	string qidstr("qid");
 	if (not parseFeatureValue(cfeature, cvalue))
 		return true;
-	if (not isrankingset and qidstr.compare(cfeature)) // qid is present
+
+	if (not qidstr.compare(cfeature)) // qid is present
 		if (not parseFeatureValue(cfeature, cvalue))
 			return true;
-
 	do {
 		// check value
 		if (cvalue.empty()) {
@@ -353,14 +362,17 @@ bool InstanceData::storeLine(char* line, int i, double label, int qid) { // uses
 		}
 
 		// record feature
-		feature = atoi(cfeature.c_str());
+		feature = atoi(cfeature.c_str()) - 1;
 		if (feature < 0 or feature > getNumFeatures()) {
 			fprintf(stderr, "Error: feature index %d out of expected range\n",
 					feature);
 			return false;
 		}
 		value = (double) atof(cvalue.c_str());
-		features[feature - 1]->at(i) = value;
+		SparseFeature sf;
+		sf.i_index = i;
+		sf.value = value;
+		rawfeatures[feature].push_back(sf);
 		// TODO: faster?? consider dropping this if statement and using 
 		// mine = (f >= minfeature and f <= maxfeature); features[f*mine]->value = v*mine;
 	} while (parseFeatureValue(cfeature, cvalue));
@@ -372,6 +384,43 @@ bool InstanceData::storeLine(char* line, int i, double label, int qid) { // uses
 	return true;
 }
 
+int InstanceData::binarySearch(int f, int i) {
+	int first, last, mid = 0;
+	first = 0;
+	last = rawfeatures[f].size() - 1;
+	bool found = false;
+	while ((!found) && (first <= last)) {
+		mid = first + (last - first) / 2;
+		if (rawfeatures[f][mid].i_index == i)
+			found = true;
+		else if (i < rawfeatures[f][mid].i_index)
+			last = mid - 1;
+		else if (i > rawfeatures[f][mid].i_index)
+			first = mid + 1;
+	}
+
+	if (found)
+		return mid;
+
+	return -1;
+}
+
+void InstanceData::setNode(int i, int n)
+{
+	node[i] = n;
+}
+
+int InstanceData::getNode(int i)
+{
+	return node[i];
+}
+
+void InstanceData::reset() {
+	// clear nodes before next tree
+	for (int i = 0; i < N; i++) {
+		node[i] = 0;
+	}
+}
 bool InstanceData::parseFeatureValue(string &cfeature, string &cvalue) {
 	// get token
 	char* tok;
@@ -409,7 +458,12 @@ int InstanceData::getNumQueries() {
 }
 
 double InstanceData::getFeature(int f, int i) {
-	return features[f]->at(i);
+	// binarySearch needs log(rawfeatures[f].size())
+	int index = binarySearch(f, i);
+	if (index == -1)
+		return -9999999.f;
+
+	return rawfeatures[f][index].value;
 }
 
 void InstanceData::initMetrics() {
@@ -516,6 +570,8 @@ void InstanceData::updateMultiPx() {
 }
 */
 void InstanceData::predResult() {
+//TODO maybe extract to args
+        int weight[2] = {113, 1};
 
 	for (int i = 0; i < N; i++) {
 		double max = multi_px[0][i];
@@ -525,7 +581,7 @@ void InstanceData::predResult() {
 			if (multi_label[k][i] == 1) {
 				r_label = k;
 			}
-			if (multi_px[k][i] > max) {
+			if (multi_px[k][i]*weight[k]  > max) {
 				max = multi_px[k][i];
 				r_pred = k;
 			}

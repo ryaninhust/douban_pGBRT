@@ -13,6 +13,7 @@ class SplitsBuffer {
 
 		void clear();
 		void updateSingleCore(FeatureData* data, StaticTree* tree, int numtree);
+		void updateSingleCore_v(InstanceData* data, StaticTree* tree, int numtree);
 		void updateFromData(FeatureData* data, StaticTree* tree);
 		void updateFromBuffer(unsigned int* buffer);
 
@@ -73,7 +74,25 @@ void SplitsBuffer::updateSingleCore(FeatureData* data, StaticTree* tree, int num
 		//smaller be right
 		if (feature >= 0 and data->getFeature(feature, i) < split) { // TODO : eliminate branch
 			data->setNode(i,data->getNode(i) | 1U); // node[i] += 1
-		}	
+		}
+	}
+}
+void SplitsBuffer::updateSingleCore_v(InstanceData* data, StaticTree* tree, int numtree) {
+	// iterate over data instances
+	for (int i=0; i<N; i++) {
+		// get previous node
+		int node = data->getNode(i);
+
+		// determine new node
+		int feature; double split;
+		tree->getSplit(node, feature, split);
+
+		data->setNode(i,data->getNode(i) << 1); // node[i] *= 2
+
+		//smaller be right
+		if (feature >= 0 and data->getFeature(feature, i) < split) { // TODO : eliminate branch
+			data->setNode(i,data->getNode(i) | 1U); // node[i] += 1
+		}
 	}
 }
 //TODO: change node order

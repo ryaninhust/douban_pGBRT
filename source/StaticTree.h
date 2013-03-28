@@ -55,6 +55,8 @@ class StaticTree {
 		// prediction methods
 		void updateTrainingPredictions(FeatureData *data, int k,
 				double learningrate);
+		void updatePredictions_2nd(InstanceData *data, int k,
+				double learningrate);
 		void updatePredictions(InstanceData *data, int k, double learningrate);
 
 		// output methods
@@ -63,6 +65,7 @@ class StaticTree {
 		// info methods
 		void getSplit(int node, int &feature, double &split);
 		int getNumNodes();
+                void traceFeatureSplit(int level, int i, int feature);
 
 
 	private:
@@ -71,6 +74,7 @@ class StaticTree {
 		int nodesAtDepth(int d);
 		void clearNode(StaticNode* node);
 		double classifyDataPoint(InstanceData* data, int p);
+		void classifyDataPoint_2nd(InstanceData* data, int _layer);
 		void updateBestSplits(FeatureData* data, int k, int f, int numtree);
 		void printNode(int level, int i, double learningrate);
 };
@@ -214,20 +218,10 @@ void StaticTree::updateBestSplits(FeatureData* data, int k, int f,
 		int n = data->getNode(i);
 		double l = data->getMultiResidual(k, i);
 		StaticNode* node = layers[layer][n];
-
-
-		// REVISE v < node->
-		if(sortedfeatures ==1 & node->m_infty > 1) {
-			node->m_s += 1;
-			node->l_s += l;
-			node->l_abs_s += fabs(l);
-			node->l_sqr_s += -pow(l, 2.0);
-		}
 		if (node->m_s > 0 and node->s > v) {
 			double loss_i = pow(node->l_s, 2.0) / (double) node->m_s
 				+ pow(node->l_infty - node->l_s, 2.0)
 				/ (double) (node->m_infty - node->m_s);
-
 			if (node->loss < 0 or loss_i > node->loss) {
 				node->loss = loss_i;
 				node->feature = globalf;
@@ -255,14 +249,14 @@ void StaticTree::updateBestSplits(FeatureData* data, int k, int f,
 	}
 	for(int n = 0; n < nodes; n++) {
 		StaticNode* node = layers[layer][n];
-		if(node->m_s < node->m_infty) {
+		if((node->m_s < node->m_infty) & (node->m_s > 0)) {
 			double loss_i = pow(node->l_s, 2.0) / (double) node->m_s
 				+ pow(node->l_infty - node->l_s, 2.0)
 				/ (double)(node->m_infty - node->m_s);
 			if (node->loss < 0 or loss_i > node->loss) {
 				node->loss = loss_i;
 				node->feature = globalf;
-				node->split = (node->s + 0) / 2.f;
+				node->split = (node->s + -9999999.f) / 2.f;
 				StaticNode* child1 = layers[layer + 1][2 * n];
 				child1->n_size = node->m_s;
 				child1->label = node->l_s / (node->l_abs_s + node->l_sqr_s);
@@ -399,11 +393,32 @@ void StaticTree::updatePredictions(InstanceData *data, int k,
 		double learningrate) {
 	int N = data->getN();
 	for (int i = 0; i < N; i++) {
-		double pred = learningrate * classifyDataPoint(data, i);
+		double pred = nanToNum(learningrate * classifyDataPoint(data, i));
 		data->updateMultiPred(k, i, pred);
 	}
 }
+void StaticTree::updatePredictions_2nd(InstanceData *data, int k, double learningrate) {
+	int N = data->getN();
+//	for(int i = 0; i<depth-1; i++) {
+//		classifyDataPoint_2nd(data, i);
+//	}
+	for (int i = 0; i < N; i++) {
+		int node = data->getNode(i);
+		double pred = nanToNum(learningrate * layers[layer][node]->label);
+		data->updateMultiPred(k, i, pred);
+	}
 
+}
+void StaticTree::classifyDataPoint_2nd(InstanceData* data, int _layer) {
+	for (int i = 0; i < data->getN(); i++) {
+		int f = layers[_layer][data->getNode(i)]->feature;
+		double s = layers[_layer][data->getNode(i)]->split;
+		data->setNode(i, data->getNode(i)<<1);
+		if (f >= 0 and data->getFeature(f, i) < s) { // TODO : eliminate branch
+			data->setNode(i,data->getNode(i) | 1U); // node[i] += 1
+		}
+	}
+}
 double StaticTree::classifyDataPoint(InstanceData* data, int p) {
 	// descend tree
 	int node = 0;
@@ -419,7 +434,9 @@ double StaticTree::classifyDataPoint(InstanceData* data, int p) {
 		// perform split
 		node <<= 1; // node *= 2, index of left child
 		//smaller be right
-		node |= (data->getFeature(f, p) < s); // node += 1, if right child
+
+		double feature_value = data->getFeature(f,p);
+		node |= (feature_value < s); // node += 1, if right child
 	}
 
 	// return label of leaf node as prediction
@@ -434,12 +451,8 @@ void StaticTree::printNode(int level, int i, double learningrate) {
 	// print node
 	if (level > 0)
 		printf(",");
-	//sleep(2);
-	printf("%d:%d:%d:%f:%f", level, i, node->feature, node->split, learningrate * node->label);
-
-
-	// print children
-	if (node->feature > 0) { // a splitting node
+	printf("%d:%f:%f",node->feature, node->split, learningrate * node->label);
+	if (node->feature >= 0) { // a splitting node
 		printNode(level + 1, 2 * i, learningrate); // print left child
 		printNode(level + 1, 2 * i + 1, learningrate); // print right child
 	}
@@ -449,6 +462,18 @@ void StaticTree::printTree(double learningrate) {
 	printNode(0, 0, learningrate);
 	printf("\n");
 }
+
+void StaticTree::traceFeatureSplit(int level, int i, int feature) {
+	StaticNode *node = layers[level][i];
+	if (feature == node->feature) {
+		printf("%f\n", node->split);
+	}
+	if (node->feature >= 0) {
+		traceFeatureSplit(level + 1, 2 * i, feature);
+		traceFeatureSplit(level + 1, 2 * i + 1, feature);
+	}
+} 
+
 
 void StaticTree::getSplit(int node, int &feature, double &split) {
 	feature = layers[layer][node]->feature;

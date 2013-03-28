@@ -52,15 +52,13 @@ int main(int argc, char* argv[]) {
 	}
 
 	// if good args, print parameters
-	if (a.isRoot)
-		//print_args(a);
+//	if (a.isRoot)
+//		print_args(a);
 	// run and exit
 	//	int flag = 1;
 	//	while(flag);
 	run(a);
 	MPI_Finalize();
-	if (a.isRoot)
-		//printf("OK!");
 	return EXIT_SUCCESS;
 }
 
@@ -176,7 +174,7 @@ void computemetrics(args_t a, FeatureData* train, InstanceData* valid,
 /*
  * BUILDTREE: build a regression tree in parallel
  */
-void buildtree(args_t args, StaticTree* tree, FeatureData* data,
+void buildtree(args_t args, StaticTree* tree, FeatureData* data,InstanceData* valid,
 		SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k);
 
 /*
@@ -226,8 +224,8 @@ void run(args_t a) {
 		printtime("initialization");
 
 	// print metrics header
-	if (a.isRoot)
-		//printmetricsheader(a);
+	//if (a.isRoot)
+	//	printmetricsheader(a);
 
 	// construct trees
 
@@ -238,9 +236,6 @@ void run(args_t a) {
 		//storage = NULL;
 	}
 	for (int i = 0; i < a.numTrees; i++) {
-		if(a.isRoot) { 
-			//printf("===================================================%d\n", i);
-		}
 		// update residuals
 		train->updateMultiPx();
 		train->updateMultiResiduals();
@@ -250,19 +245,23 @@ void run(args_t a) {
 			test->updateMultiPx();
 
 		//if (i % 10 == 1)
-			//computemetrics(a, train, valid, test, i);
+			computemetrics(a, train, valid, test, i);
 
 		// print tree time
 		if (i % 100 == 99 and a.isRoot and a.time)
 			printtime("trees");
 		for (int k = 0; k < a.classSize; k++) {
-			// build tree
 			tree->clear();
-			buildtree(a, tree, train, splitsbuffer, a.maxDepth, a.numProcs, i,
+			buildtree(a, tree, train, valid, splitsbuffer, a.maxDepth, a.numProcs, i,
 					k);
-
 			// print tree
 			if (a.isRoot) {
+			/*
+				if(k == 1) {
+					printf("===========================\n");
+					tree->traceFeatureSplit(0, 0, );
+				}
+			*/
 				//storage->insertTree(k, i, tree, a.learningRate);
 				//tree->printTree(a.learningRate);
 			}
@@ -271,6 +270,7 @@ void run(args_t a) {
 			tree->updateTrainingPredictions(train, k, a.learningRate);
 			//TODO change updatePredictions
 			if (a.useValidSet)
+				//tree->updatePredictions_2nd(valid, k, a.learningRate);
 				tree->updatePredictions(valid, k, a.learningRate);
 			if (a.useTestSet)
 				tree->updatePredictions(test, k, a.learningRate);
@@ -279,11 +279,9 @@ void run(args_t a) {
 
 		}
 	}
-	train->predResult();
-//	if(a.useValidSet)
-//		valid->predResult();
+	if(a.useValidSet)
+		valid->predResult();
 
-	// destroy tree
 	delete tree;
 
 	// delete datasets
@@ -300,10 +298,11 @@ void run(args_t a) {
 /*
  * BUILD TREE: compress features, send to master, receive splits, and repeat
  */
-void buildtree(args_t args, StaticTree* tree, FeatureData* data,
+void buildtree(args_t args, StaticTree* tree, FeatureData* data, InstanceData* valid,
 		SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k) {
 	// reset nodes
 	data->reset();
+	valid->reset();
 	// apply subsampling
 
 	// build tree in layers
@@ -317,6 +316,8 @@ void buildtree(args_t args, StaticTree* tree, FeatureData* data,
 		if (numProcs == 1) {
 			// apply splits
 			splits->updateSingleCore(data, tree, numtree);
+			//splits->updateSingleCore_v(valid, tree, numtree);
+
 		} else {
 			// determine if any splitting features are stored locally
 			bool localSplits = tree->containsSplittingFeature(data);

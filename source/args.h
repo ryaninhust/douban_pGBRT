@@ -64,6 +64,7 @@ struct args_t {
 	int maxDepth;
 	int numTrees;
 	double learningRate;
+	
 
 	// subsampling
 	// bool useFriedmanSubsampling; float friedmanSubsampleRate;

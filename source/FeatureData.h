@@ -197,15 +197,15 @@ bool FeatureData::read(const char* file) {
 		}
 	}
 	// indicate success
-//	for (int j = 0; j < K; j++) {
-//		bincounts[j] = bincounts[j] / linenum;
-//	}
-//	//init multi_pred
-//	for (int i =0; i < N; i++) {
-//		for (int j = 0; j < K; j++) {
-//			multi_pred[j][i] = bincounts[j];
-//		}
-//	}
+  	for (int j = 0; j < K; j++) {
+  		bincounts[j] = bincounts[j] / linenum;
+  	}
+  	//init multi_pred
+  	for (int i =0; i < N; i++) {
+  		for (int j = 0; j < K; j++) {
+  			multi_pred[j][i] = bincounts[j];
+  		}
+  	}
 	return true;
 }
 
@@ -489,7 +489,7 @@ double FeatureData::getFeature(int f, int i) {
 	// binarySearch needs log(rawfeatures[f].size())
 	int index = binarySearch(f, i);
 	if (index == -1)
-		return 0.0;
+		return -9999999.f;
 
 	return rawfeatures[f][index].value;
 }
@@ -497,7 +497,7 @@ double FeatureData::getFeature(int f, int i) {
 double FeatureData::getSortedFeature(int f, int i) {
 	if (i >= N - sortedfeatures[f].size())
 		return sortedfeatures[f][i - (N - sortedfeatures[f].size())].value;
-	return 0.f;
+	return -9999999.f;
 }
 
 int FeatureData::getSortedIndex(int f, int i) {
@@ -524,7 +524,7 @@ void FeatureData::updateMultiPred(int k, int i, double p) {
 }
 */
 
-void FeatureData::updateMultiPred(int k, int i , double p) {
+void FeatureData::updateMultiPred(int k, int i, double p) {
 	multi_pred[k][i] = multi_pred[k][i] + p;
 }
 
@@ -581,7 +581,6 @@ void FeatureData::updateMultiPx() {
 	}
 }
 void FeatureData::predResult() {
-
 	for (int i = 0; i <N; i++) {
 		double max = multi_px[0][i];
 		int r_label = 0;
