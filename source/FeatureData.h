@@ -39,7 +39,7 @@ class FeatureData { // represents a training data set distributed among processo
 		void reset();
 
 		// metrics
-		void computeMetrics(double &rmse, double &err, double &ndcg); // TODO for now, just compute using single-core, no comm
+		void computeMetrics(double &rmse, double &err, double &ndcg, double &rate, double &loss); // TODO for now, just compute using single-core, no comm
 
 		// queries
 		int getN();
@@ -54,6 +54,7 @@ class FeatureData { // represents a training data set distributed among processo
 		double getFeature(int f, int i);
 		double getSortedFeature(int f, int i);
 		int getSortedIndex(int f, int i);
+		bool hasWeight(int i, int k);
 
 		int whoHasFeature(int f);
 		bool isLocalFeature(int f);
@@ -70,7 +71,7 @@ class FeatureData { // represents a training data set distributed among processo
 		//
 		void updateSparseValue();
 		void initSparseValue();
-		void predResult();
+		void predResult(string filePath);
 
 		//private:
 	public:
@@ -165,7 +166,7 @@ FeatureData::FeatureData(int n, int k, int numfeatures_, int isrankingset_,
 	for (int j = 0; j < k; j++)
 		bincounts[j] = 0;
 	for (int i = 0; i < n; i++)
-		node[i] = 0;
+		node[i] = 0;	
 	idealdcg = NULL;
 
 }
@@ -201,11 +202,13 @@ bool FeatureData::read(const char* file) {
   		bincounts[j] = bincounts[j] / linenum;
   	}
   	//init multi_pred
+    /*
   	for (int i =0; i < N; i++) {
   		for (int j = 0; j < K; j++) {
   			multi_pred[j][i] = bincounts[j];
   		}
   	}
+    */
 	return true;
 }
 
@@ -396,10 +399,12 @@ void FeatureData::initMetrics() {
 	//	computeIdealDCG(N, qid, label, idealdcg);
 }
 
-void FeatureData::computeMetrics(double &rmse, double &err, double &ndcg) {
+void FeatureData::computeMetrics(double &rmse, double &err, double &ndcg, double &rate, double &loss) {
 	// compute rmse
 	rmse = sqrt(
 			computeMultiBoostingSE(N, K, multi_label, multi_px) / (double) N * K);
+    rate = computeRightSize(N, K, multi_label, multi_px) / (double)N;
+    loss = computeLogLoss(N, K, multi_label, multi_px);
 
 	// if not ranking data set, return
 	if (not isrankingset)
@@ -485,6 +490,9 @@ double FeatureData::getMultiResidual(int k, int i) {
 	return multi_residual[k][i];
 }
 
+bool FeatureData::hasWeight(int i, int k) {
+	return multi_label[k][i] == 1;
+}
 double FeatureData::getFeature(int f, int i) {
 	// binarySearch needs log(rawfeatures[f].size())
 	int index = binarySearch(f, i);
@@ -580,22 +588,26 @@ void FeatureData::updateMultiPx() {
 		}
 	}
 }
-void FeatureData::predResult() {
-	for (int i = 0; i <N; i++) {
+void FeatureData::predResult(string filePath) {
+//TODO maybe extract to args
+        ofstream outPutFile;
+	outPutFile.open(filePath.c_str());
+	for (int i = 0; i < N; i++) {
 		double max = multi_px[0][i];
 		int r_label = 0;
 		int r_pred = 0;
 		for (int k = 0; k < K; k++) {
-			if(multi_label[k][i] == 1) {
+			if (multi_label[k][i] == 1) {
 				r_label = k;
 			}
-			if(multi_px[k][i] > max) {
+			if (multi_px[k][i]  > max) {
 				max = multi_px[k][i];
 				r_pred = k;
 			}
 		}
-		printf("%d %d\n",r_label, r_pred);
+		outPutFile << r_label << r_pred <<"\n";
+		//printf("%d %d\n",r_label, r_pred);
 	}
+	outPutFile.close();
 }
-
 #endif

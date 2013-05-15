@@ -1,1 +1,2 @@
-mpirun  -np 2  ../bin/pgbrt dna.scale.tr 1400 180 4 100 0.1 -V dna.scale.val -v 600  
+mpirun -np 1 ../bin/ents dna.scale.tr 1400 180 4 100 0.1 3  -V ../data/dna.scale.val -v600
+

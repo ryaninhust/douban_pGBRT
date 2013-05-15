@@ -22,8 +22,8 @@ using namespace std;
  * MAIN: initialize MPI, read arguments
  */
 time_t start;
-void run(args_t a);
-/**
+void run(args_t a, int myid);
+/**useTestSet
  * TODO:
  * 3-5
  * 调试验证排序与选优
@@ -57,7 +57,8 @@ int main(int argc, char* argv[]) {
 	// run and exit
 	//	int flag = 1;
 	//	while(flag);
-	run(a);
+	run(a, myid);
+	printf("%d", myid);
 	MPI_Finalize();
 	return EXIT_SUCCESS;
 }
@@ -136,21 +137,21 @@ void printmetricsheader(args_t a) {
 void computemetrics(args_t a, FeatureData* train, InstanceData* valid,
 		InstanceData* test, int iter) {
 	// metrics variables
-	double rmse, err, ndcg;
+	double rmse, err, ndcg, rate, loss;
 
 	// compute train metrics
 	if (a.isRoot) {
-		train->computeMetrics(rmse, err, ndcg);
-		printf("iter: %d, Train rmse: %f", iter, rmse);
+		train->computeMetrics(rmse, err, ndcg, rate, loss);
+		printf("iter: %d, Train rmse: %f, rate: %f, loss: %f", iter, rmse, rate, loss);
 		if (a.computeRankingMetrics)
 			printf(",%f,%f", err, ndcg);
 	}
 
 	// compute validation metrics
 	if (a.useValidSet) {
-		valid->computeMetrics(rmse, err, ndcg);
+		valid->computeMetrics(rmse, err, ndcg, rate, loss);
 		if (a.isRoot) {
-			printf("Valid rmse: %f", rmse);
+			printf("Valid rmse: %f, rateL %f, loss: %f", rmse, rate, loss);
 			if (a.computeRankingMetrics)
 				printf(",%f,%f", err, ndcg);
 		}
@@ -158,7 +159,7 @@ void computemetrics(args_t a, FeatureData* train, InstanceData* valid,
 
 	// compute test metrics
 	if (a.useTestSet) {
-		test->computeMetrics(rmse, err, ndcg);
+		test->computeMetrics(rmse, err, ndcg, rate, loss);
 		if (a.isRoot) {
 			printf("Test rmse: %f", rmse);
 			if (a.computeRankingMetrics)
@@ -175,7 +176,7 @@ void computemetrics(args_t a, FeatureData* train, InstanceData* valid,
  * BUILDTREE: build a regression tree in parallel
  */
 void buildtree(args_t args, StaticTree* tree, FeatureData* data,InstanceData* valid,
-		SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k);
+		SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k, float weight);
 
 /*
  * SHUFFLE: random shuffle function for Friedman subsampling
@@ -201,13 +202,14 @@ static void printtime(const char* event) {
 /*
  * RUN: read data, build trees, and track metrics
  */
-void run(args_t a) {
+void run(args_t a, int myid) {
 	// read section of training set
 	//Store* storage;
 	FeatureData* train = readtrainingdata(a, a.trainFile, a.sizeTrainFile);
 
 	// initialize splits buffer
 	SplitsBuffer* splitsbuffer = new SplitsBuffer(train->getN());
+	float samplingWeight[2] = {113.0, 1.0};
 
 	// read section of validation set
 	InstanceData* valid = NULL;
@@ -252,8 +254,9 @@ void run(args_t a) {
 			printtime("trees");
 		for (int k = 0; k < a.classSize; k++) {
 			tree->clear();
+			float weight = samplingWeight[k];
 			buildtree(a, tree, train, valid, splitsbuffer, a.maxDepth, a.numProcs, i,
-					k);
+					k, weight);
 			// print tree
 			if (a.isRoot) {
 			/*
@@ -279,12 +282,17 @@ void run(args_t a) {
 
 		}
 	}
-	if(a.useValidSet)
-		valid->predResult();
+	if(a.useValidSet) {
+		char numstr[21];
+		std::string prefix = "/mfs/user/ybw_intern/data/output/";
+		sprintf(numstr, "%d", myid);
+		valid->predResult(prefix + numstr);
+	        }
 
 	delete tree;
 
 	// delete datasets
+	
 	delete train;
 	delete splitsbuffer;
 	delete valid;
@@ -299,7 +307,7 @@ void run(args_t a) {
  * BUILD TREE: compress features, send to master, receive splits, and repeat
  */
 void buildtree(args_t args, StaticTree* tree, FeatureData* data, InstanceData* valid,
-		SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k) {
+		SplitsBuffer* splits, int maxDepth, int numProcs, int numtree, int k, float weight) {
 	// reset nodes
 	data->reset();
 	valid->reset();
@@ -308,7 +316,7 @@ void buildtree(args_t args, StaticTree* tree, FeatureData* data, InstanceData* v
 	// build tree in layers
 	for (int l = 1; l < maxDepth; l++) {
 		// find best splits on local features
-		tree->findBestLocalSplits(data, k, numtree);
+		tree->findBestLocalSplits(data, k, numtree, weight);
 
 		// exchange local splits and determine best global splits
 		tree->exchangeBestSplits();

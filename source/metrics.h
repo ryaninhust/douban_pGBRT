@@ -59,6 +59,33 @@ static double computeMultiBoostingSE(int N, int K, double **multi_label, double 
 	}
 	return SE;
 }
+static double computeLogLoss(int N, int K, double **multi_label, double **multi_px) {
+    double loss;
+    for (int i=0; i<N; i++) {
+        for (int k = 0; k < K; k++) {
+            loss += multi_label[k][i] * log(multi_px[k][i]); 
+        }
+    }
+    return -1 * loss;
+}
+
+static int computeRightSize(int N, int K, double **multi_label, double **multi_px) {
+    int right_size = 0;
+    for (int i=0; i<N; i++) {
+        double max_value, max_index;
+        max_value = max_index = 0.0;
+        for (int k=0; k<K; k++){
+            if(multi_px[k][i] >= max_value) {
+                max_value = multi_px[k][i];
+                max_index = k;
+            }
+        }
+        if (multi_label[(int)max_index][i] == 1.0) {
+            right_size ++;
+        }
+    }
+    return right_size;
+}
 
 /*
  * compute number of queries (assumes, per data format standard, that instances are ordered by qid)

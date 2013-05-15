@@ -48,7 +48,7 @@ class StaticTree {
 		// construction methods
 		void clear();
 		void startNextLayer();
-		void findBestLocalSplits(FeatureData* data, int k, int numtree);
+		void findBestLocalSplits(FeatureData* data, int k, int numtree, float weight);
 		void exchangeBestSplits();
 		bool containsSplittingFeature(FeatureData* data);
 
@@ -75,7 +75,7 @@ class StaticTree {
 		void clearNode(StaticNode* node);
 		double classifyDataPoint(InstanceData* data, int p);
 		void classifyDataPoint_2nd(InstanceData* data, int _layer);
-		void updateBestSplits(FeatureData* data, int k, int f, int numtree);
+		void updateBestSplits(FeatureData* data, int k, int f, int numtree, float weight);
 		void printNode(int level, int i, double learningrate);
 };
 
@@ -151,16 +151,17 @@ int StaticTree::nodesAtDepth(int d) {
 	return (int) pow(2.f, ((double) d));
 }
 
-void StaticTree::findBestLocalSplits(FeatureData* data, int k, int numtree) {
+void StaticTree::findBestLocalSplits(FeatureData* data, int k, int numtree, float weight) {
 	// recompute counts at nodes
 	int class_size = data->getK();
 	for (int i = 0; i < data->getN(); i++) {
 		int n = data->getNode(i);
-		layers[layer][n]->m_infty += 1;
-		layers[layer][n]->l_infty += data->getMultiResidual(k, i);
-		layers[layer][n]->l_abs_infty += fabs(data->getMultiResidual(k, i));
+		weight = data->hasWeight(i, k)? weight: 1;
+		layers[layer][n]->m_infty += 1 * int(weight);
+		layers[layer][n]->l_infty += data->getMultiResidual(k, i) * weight;
+		layers[layer][n]->l_abs_infty += fabs(data->getMultiResidual(k, i)) * weight;
 		layers[layer][n]->l_sqr_infty += -pow(data->getMultiResidual(k, i),
-				2.0);
+				2.0) * weight ;
 
 	}
 
@@ -174,8 +175,8 @@ void StaticTree::findBestLocalSplits(FeatureData* data, int k, int numtree) {
 		StaticNode* child1 = layers[layer + 1][n * 2];
 		StaticNode* child2 = layers[layer + 1][n * 2 + 1];
 		if (node->m_infty > 0) {
-			double weight = (double(class_size-1) / class_size);
-			double label = weight * node->l_infty
+			double para = (double(class_size-1) / class_size);
+			double label = para * node->l_infty
 				/ (node->l_abs_infty + node->l_sqr_infty);
 			node->label = label;
 			child1->label = label;
@@ -185,13 +186,13 @@ void StaticTree::findBestLocalSplits(FeatureData* data, int k, int numtree) {
 
 	// iterate over features and update best splits at each node
 	for (int f = 0; f < data->getNumFeatures(); f++) {
-		updateBestSplits(data, k, f, numtree);
+		updateBestSplits(data, k, f, numtree, weight);
 	}
 }
 
 // REVISE
 void StaticTree::updateBestSplits(FeatureData* data, int k, int f,
-		int numtree) {
+		int numtree, float weight) {
 	// compute global feature index
 	int globalf = data->globalFeatureIndex(f);
 	// reset counts at nodes
@@ -215,8 +216,9 @@ void StaticTree::updateBestSplits(FeatureData* data, int k, int f,
 		SparseFeature sf = (*data).sortedfeatures[f][j];
 		double v = sf.value;
 		int i = sf.i_index;
+		weight = data->hasWeight(i, k)? weight: 1;
 		int n = data->getNode(i);
-		double l = data->getMultiResidual(k, i);
+		double l = data->getMultiResidual(k, i) * weight;
 		StaticNode* node = layers[layer][n];
 		if (node->m_s > 0 and node->s > v) {
 			double loss_i = pow(node->l_s, 2.0) / (double) node->m_s
@@ -240,10 +242,10 @@ void StaticTree::updateBestSplits(FeatureData* data, int k, int f,
 		// update variables
 
 		// REVISE
-		node->m_s += 1;
+		node->m_s += 1 * int(weight);
 		node->l_s += l;
-		node->l_abs_s += fabs(l);
-		node->l_sqr_s += -pow(l, 2.0);
+		node->l_abs_s += fabs(l) * weight;
+		node->l_sqr_s += -pow(l, 2.0) * weight;
 		node->s = v;
 		//printf("%d:%d:%f:%f\n",n, node->feature, node->split, node->loss);
 	}

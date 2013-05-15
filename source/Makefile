@@ -1,5 +1,5 @@
 COMPILER=mpicxx
-GCC=-O3 -ftree-vectorize -pthread -lmongoclient -lboost_thread-mt -lboost_filesystem -lboost_program_options -lboost_system
+GCC=-O3 -ftree-vectorize
 ICC=-O3 -fp-model fast -xHost -ipo -no-prec-div
 
 gcc:

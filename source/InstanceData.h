@@ -29,7 +29,7 @@ public:
 	void initMetrics();
 
 	// metrics
-	void computeMetrics(double &rmse, double &err, double &ndcg);
+	void computeMetrics(double &rmse, double &err, double &ndcg, double &rate, double &loss);
 
 	// queries
 	int getN();
@@ -41,7 +41,7 @@ public:
 	void updatePred(int i, double p);
 	void updateMultiPred(int k, int i, double p);
 	void updateMultiPx();
-	void predResult();
+	void predResult(string filePath);
 	void setNode(int i, int n);
 	int getNode(int i);
 	void reset();
@@ -263,13 +263,13 @@ bool InstanceData::read(const char* file, int filesize, double* bincounts) {
 		// 这里-1
 		multi_label[int(labeltemp->at(i)) - 1][i] = 1.0;
 	}
-
+/*
   	for (int k = 0; k < K; k++) {
   		for (int i =0; i < N; i++) {
   			multi_pred[k][i] = bincounts[k];
   		}
   	}
-
+*/
 	delete labeltemp;
 	labeltemp = NULL;
 
@@ -479,13 +479,16 @@ void InstanceData::initMetrics() {
 	//computeIdealDCG(N, qid, label, idealdcg);
 }
 
-void InstanceData::computeMetrics(double &rmse, double &err, double &ndcg) {
+void InstanceData::computeMetrics(double &rmse, double &err, double &ndcg, double &rate, double &loss) {
 	// uses MPI_Reduce to compute across all processors,
 	// however results are only valid at root (myid==0)
 
 	// compute rmse
 	//double se = computeBoostingSE(N, label, pred);
 	double se = computeMultiBoostingSE(N, K, multi_label, multi_px);
+    int right_size = computeRightSize(N, K, multi_label, multi_px);
+    double thisLoss = computeLogLoss(N, K, multi_label, multi_px);
+     
 	// compute ranking metrics
 	double rawerr, rawndcg;
 	int nq;
@@ -494,13 +497,16 @@ void InstanceData::computeMetrics(double &rmse, double &err, double &ndcg) {
 		nq = getNumQueries();
 	}
 	// reduce sums to master
-	double buffer[] = { se, (double) getN(), rawerr, rawndcg, (double) nq };
-	double recv_buffer[] = { -1.0, -1.0, -1.0, -1.0, -1.0 };
-	MPI_Reduce(&buffer, &recv_buffer, 5, MPI_DOUBLE, MPI_SUM, 0,
+	double buffer[] = { se, (double) getN(), rawerr, rawndcg, (double) nq, (double) right_size, thisLoss};
+	double recv_buffer[] = { -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};
+	MPI_Reduce(&buffer, &recv_buffer, 7, MPI_DOUBLE, MPI_SUM, 0,
 			MPI_COMM_WORLD);
 
 	// compute
 	rmse = sqrt(recv_buffer[0] / recv_buffer[1] * K);
+    rate = recv_buffer[5] / recv_buffer[1];
+    loss = recv_buffer[6];
+    
 	if (not isrankingset)
 		return;
 	err = recv_buffer[2] / recv_buffer[4];
@@ -532,7 +538,7 @@ void InstanceData::updateMultiPx() {
 	for (int i = 0; i < N; i++) {
 		double temp = 0.0;
 		for (int k = 0; k < K; k++) {
-			temp = nanToNum(temp + nanToNum(exp(multi_pred[k][i])));
+			temp = nanToNum((temp + nanToNum(exp(multi_pred[k][i]))));
 			}
 		for (int k = 0; k < K; k++) {
 			multi_px[k][i] = nanToNum(nanToNum(exp(multi_pred[k][i])) / temp);
@@ -569,10 +575,10 @@ void InstanceData::updateMultiPx() {
 	}
 }
 */
-void InstanceData::predResult() {
+void InstanceData::predResult(string filePath) {
 //TODO maybe extract to args
-        int weight[2] = {113, 1};
-
+        ofstream outPutFile;
+	outPutFile.open(filePath.c_str());
 	for (int i = 0; i < N; i++) {
 		double max = multi_px[0][i];
 		int r_label = 0;
@@ -581,12 +587,14 @@ void InstanceData::predResult() {
 			if (multi_label[k][i] == 1) {
 				r_label = k;
 			}
-			if (multi_px[k][i]*weight[k]  > max) {
+			if (multi_px[k][i]  > max) {
 				max = multi_px[k][i];
 				r_pred = k;
 			}
 		}
-		printf("%d %d\n",r_label, r_pred);
+		outPutFile << r_label << r_pred <<"\n";
+		//printf("%d %d\n",r_label, r_pred);
 	}
+	outPutFile.close();
 }
 #endif
