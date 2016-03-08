@@ -1,4 +1,4 @@
 douban_pGBRT
 ============
 
-并行化梯度下降决策树算法工具
+Distributed Gradient Boosting Tree
